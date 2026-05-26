@@ -1,6 +1,7 @@
 .DS_Store
 *.log
 data/
-caddy_data/
 caddy_config/
+certs/
+backups/
 .env

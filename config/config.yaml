@@ -29,7 +29,8 @@ derp:
     private_key_path: /var/lib/headscale/derp_server_private.key
     automatically_add_embedded_derp_region: true
   urls: []
-  paths: []
+  paths:
+    - /etc/headscale/derp.yaml
   auto_update_enabled: false
   update_frequency: 3h
 

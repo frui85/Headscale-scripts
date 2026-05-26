@@ -1,23 +1,42 @@
-# Headscale + self-hosted DERP one-click installer
+# Headscale-scripts
 
-This repository installs a production-oriented Headscale stack with Docker Compose:
+Headscale + embedded DERP Docker Compose one-click installer.
 
-- Headscale control server
-- Headscale embedded DERP enabled
-- Caddy reverse proxy with automatic HTTPS
-- SQLite persistence under `/opt/headscale/data`
-- A permissive starter ACL file
-- A generated client connection guide
+本仓库用于一键安装 Headscale 自建控制服务器，并启用 Headscale embedded DERP。客户端只需要连接 Headscale 域名，DERP map 由 Headscale 自动下发。
 
-By default, Headscale only publishes the embedded DERP region to clients. That means phone and desktop clients connect to the Headscale control server URL, then receive this server's DERP map from Headscale. You do not configure a separate DERP URL on clients.
+## Directory
 
-## Quick start
+```text
+Headscale-scripts/
+├── install.sh
+├── uninstall.sh
+├── update.sh
+├── docker-compose.yml
+├── .env.example
+├── Caddyfile
+├── README.md
+├── LICENSE
+├── scripts/
+│   ├── healthcheck.sh
+│   ├── genkey.sh
+│   └── backup.sh
+├── config/
+│   ├── config.yaml
+│   ├── derp.yaml
+│   └── acl.hujson
+└── docs/
+    ├── CLIENTS.md
+    ├── TROUBLESHOOT.md
+    └── ARCHITECTURE.md
+```
 
-Point your domain to the server first:
+## Quick Install
 
-- `A` record: `hs.example.com -> server IPv4`
-- optional `AAAA` record: `hs.example.com -> server IPv6`
-- open TCP `80`, TCP `443`, and UDP `3478`
+Before installing:
+
+- Point your domain to the server, for example `hs.example.com`.
+- Open TCP `80` and `443`.
+- Open UDP `3478`.
 
 Run:
 
@@ -26,7 +45,19 @@ curl -fsSL https://raw.githubusercontent.com/frui85/Headscale-scripts/main/insta
   | sudo bash -s -- --domain hs.example.com --email admin@example.com --user default
 ```
 
-Or clone and run locally:
+Default install directory:
+
+```text
+/opt/docker-compose.d/headscale-server
+```
+
+Caddy automatically requests HTTPS certificates for the domain passed to `--domain`. Certificate data is mounted under:
+
+```text
+/opt/docker-compose.d/headscale-server/certs
+```
+
+## Local Install
 
 ```bash
 git clone https://github.com/frui85/Headscale-scripts.git
@@ -42,48 +73,56 @@ sudo bash install.sh \
   --email admin@example.com \
   --user default \
   --base-domain tailnet.example.com \
+  --install-dir /opt/docker-compose.d/headscale-server \
   --headscale-version 0.27.1 \
+  --authkey-expiration 24h \
   --derp-ipv4 203.0.113.10
 ```
 
-Use `--include-official-derp` if you want Tailscale's public DERP network as a fallback. Without it, your embedded DERP is the only DERP region and is therefore a single point of failure.
+Use `--include-official-derp` if you want Tailscale's official DERP network as fallback. Without it, only the embedded DERP region is published.
 
-## Installed files
-
-The installer writes everything under `/opt/headscale` by default:
-
-```text
-/opt/headscale/
-  docker-compose.yml
-  Caddyfile
-  .env
-  client-connect.txt
-  config/
-    config.yaml
-    acl.hujson
-  data/
-  caddy_data/
-  caddy_config/
-```
-
-Common commands:
+## Server Commands
 
 ```bash
-cd /opt/headscale
+cd /opt/docker-compose.d/headscale-server
 docker compose ps
 docker compose logs -f headscale
 docker compose logs -f caddy
-docker compose exec headscale headscale users list
-docker compose exec headscale headscale nodes list
-docker compose exec headscale headscale preauthkeys create --user default --reusable --expiration 24h
+./scripts/healthcheck.sh
+./scripts/genkey.sh --user default
+./scripts/backup.sh
 ```
 
-## Client connection
+Update:
+
+```bash
+sudo bash update.sh --headscale-version 0.27.1
+```
+
+Uninstall but keep data:
+
+```bash
+sudo bash uninstall.sh
+```
+
+Uninstall and delete config, data, certs, and backups:
+
+```bash
+sudo bash uninstall.sh --purge
+```
+
+## Client Connection
 
 Use the Headscale URL, not a DERP URL:
 
 ```text
 https://hs.example.com
+```
+
+Linux:
+
+```bash
+sudo tailscale up --login-server https://hs.example.com --authkey <AUTH_KEY>
 ```
 
 Windows:
@@ -92,50 +131,16 @@ Windows:
 tailscale login --login-server https://hs.example.com
 ```
 
-macOS CLI:
+macOS:
 
 ```bash
 tailscale login --login-server=https://hs.example.com
 ```
 
-Linux:
+Android and iOS: add a custom or alternate control server and enter `https://hs.example.com`.
 
-```bash
-tailscale up --login-server https://hs.example.com --authkey <AUTH_KEY>
-```
+More detail:
 
-Android:
-
-```text
-Tailscale app -> Accounts -> three-dot menu -> Use an alternate server -> https://hs.example.com
-```
-
-iOS:
-
-```text
-Tailscale app -> Add account/custom control server -> https://hs.example.com
-```
-
-After the client is registered, verify DERP from a desktop client:
-
-```bash
-tailscale debug derp-map
-tailscale debug derp headscale
-```
-
-## Why clients do not configure DERP directly
-
-Tailscale clients choose DERP servers from the DERP map sent by the coordination server. In this stack, Headscale is the coordination server and its embedded DERP region is automatically added to that map. Therefore:
-
-1. Clients log in to `https://hs.example.com`.
-2. Headscale registers or approves the node.
-3. Headscale sends a DERP map containing the embedded `headscale` region.
-4. Clients use UDP `3478` for STUN and HTTPS `443` for DERP relay fallback.
-
-## References
-
-- Headscale DERP reference: <https://headscale.net/0.27.1/ref/derp/>
-- Headscale getting started: <https://docs.headscale.org/usage/getting-started/>
-- Headscale Android client docs: <https://headscale.net/0.27.1/usage/connect/android/>
-- Headscale Windows client docs: <https://docs.headscale.org/usage/connect/windows/>
-- Tailscale custom control server docs: <https://tailscale.com/docs/how-to/set-up-custom-control-server>
+- [Client connection guide](docs/CLIENTS.md)
+- [Troubleshooting](docs/TROUBLESHOOT.md)
+- [Architecture](docs/ARCHITECTURE.md)

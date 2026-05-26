@@ -1,8 +1,4 @@
-{
-    email admin@example.com
-}
-
-hs.example.com {
+{$DOMAIN} {
     encode zstd gzip
     reverse_proxy headscale:8080
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+REPO_ARCHIVE_URL="https://github.com/frui85/Headscale-scripts/archive/refs/heads/main.tar.gz"
+INSTALL_DIR="/opt/docker-compose.d/headscale-server"
 HEADSCALE_VERSION="0.27.1"
-INSTALL_DIR="/opt/headscale"
 DOMAIN=""
 ACME_EMAIL=""
 HEADSCALE_USER="default"
@@ -14,6 +15,8 @@ INCLUDE_OFFICIAL_DERP="false"
 SKIP_DOCKER_INSTALL="false"
 DERP_IPV4=""
 DERP_IPV6=""
+SOURCE_DIR=""
+TMP_SOURCE=""
 
 usage() {
   cat <<'EOF'
@@ -29,7 +32,7 @@ Options:
   --email EMAIL                ACME email used by Caddy.
   --user USER                  Initial Headscale user. Default: default
   --base-domain DOMAIN         MagicDNS base domain. Default: tailnet.<domain>
-  --install-dir DIR            Install directory. Default: /opt/headscale
+  --install-dir DIR            Install directory. Default: /opt/docker-compose.d/headscale-server
   --headscale-version VERSION  Headscale container tag. Default: 0.27.1
   --timezone TZ                Container timezone. Default: Asia/Shanghai
   --authkey-expiration VALUE   Initial reusable preauth key expiry. Default: 24h
@@ -60,6 +63,13 @@ die() {
 log() {
   printf '\n==> %s\n' "$*"
 }
+
+cleanup() {
+  if [[ -n "$TMP_SOURCE" && -d "$TMP_SOURCE" ]]; then
+    rm -rf "$TMP_SOURCE"
+  fi
+}
+trap cleanup EXIT
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -143,13 +153,10 @@ validate_args() {
 
 ensure_root() {
   if [[ "${EUID}" -ne 0 ]]; then
-    if [[ ! -f "$0" ]]; then
-      die "Please rerun piped installs with sudo, for example: curl -fsSL <url> | sudo bash -s -- --domain hs.example.com"
+    if [[ -f "${BASH_SOURCE[0]:-$0}" ]] && command -v sudo >/dev/null 2>&1; then
+      exec sudo -E bash "${BASH_SOURCE[0]}" "$@"
     fi
-    if command -v sudo >/dev/null 2>&1; then
-      exec sudo -E bash "$0" "$@"
-    fi
-    die "Please run as root or install sudo"
+    die "Please run with sudo, for example: curl -fsSL <url> | sudo bash -s -- --domain hs.example.com"
   fi
 }
 
@@ -184,50 +191,49 @@ install_docker_if_needed() {
   docker_ready || die "Docker installation did not provide 'docker compose'"
 }
 
-write_stack_files() {
-  log "Writing stack files to ${INSTALL_DIR}"
-  install -d -m 0755 "$INSTALL_DIR" "$INSTALL_DIR/config" "$INSTALL_DIR/data" "$INSTALL_DIR/caddy_data" "$INSTALL_DIR/caddy_config"
+detect_source_dir() {
+  local script_path="${BASH_SOURCE[0]:-$0}"
+  local candidate=""
 
+  if [[ -f "$script_path" ]]; then
+    candidate="$(cd "$(dirname "$script_path")" && pwd)"
+    if [[ -f "$candidate/docker-compose.yml" && -f "$candidate/config/config.yaml" ]]; then
+      SOURCE_DIR="$candidate"
+      return
+    fi
+  fi
+
+  if [[ -f "./docker-compose.yml" && -f "./config/config.yaml" ]]; then
+    SOURCE_DIR="$(pwd)"
+    return
+  fi
+
+  command -v curl >/dev/null 2>&1 || die "curl is required to download install files"
+  command -v tar >/dev/null 2>&1 || die "tar is required to unpack install files"
+
+  log "Downloading install files from GitHub"
+  TMP_SOURCE="$(mktemp -d)"
+  curl -fsSL "$REPO_ARCHIVE_URL" -o "$TMP_SOURCE/repo.tar.gz"
+  tar -xzf "$TMP_SOURCE/repo.tar.gz" --strip-components=1 -C "$TMP_SOURCE"
+  SOURCE_DIR="$TMP_SOURCE"
+}
+
+copy_tree_file() {
+  local src="$1"
+  local dst="$2"
+  install -D -m 0644 "$src" "$dst"
+}
+
+write_env_file() {
   cat > "${INSTALL_DIR}/.env" <<EOF
-HEADSCALE_VERSION=${HEADSCALE_VERSION}
 DOMAIN=${DOMAIN}
+ACME_EMAIL=${ACME_EMAIL}
+HEADSCALE_VERSION=${HEADSCALE_VERSION}
 TZ=${TZ_VALUE}
 EOF
+}
 
-  cat > "${INSTALL_DIR}/docker-compose.yml" <<'EOF'
-name: headscale-derp
-
-services:
-  headscale:
-    image: ghcr.io/juanfont/headscale:${HEADSCALE_VERSION}
-    container_name: headscale
-    restart: unless-stopped
-    command: serve
-    environment:
-      TZ: ${TZ}
-    volumes:
-      - ./config:/etc/headscale
-      - ./data:/var/lib/headscale
-    ports:
-      - "3478:3478/udp"
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: headscale-caddy
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN}
-    depends_on:
-      - headscale
-    ports:
-      - "80:80/tcp"
-      - "443:443/tcp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy_data:/data
-      - ./caddy_config:/config
-EOF
-
+write_caddyfile() {
   if [[ -n "$ACME_EMAIL" ]]; then
     cat > "${INSTALL_DIR}/Caddyfile" <<EOF
 {
@@ -247,144 +253,68 @@ ${DOMAIN} {
 }
 EOF
   fi
-
-  local derp_ip_lines=""
-  if [[ -n "$DERP_IPV4" ]]; then
-    derp_ip_lines="${derp_ip_lines}    ipv4: ${DERP_IPV4}"$'\n'
-  fi
-  if [[ -n "$DERP_IPV6" ]]; then
-    derp_ip_lines="${derp_ip_lines}    ipv6: ${DERP_IPV6}"$'\n'
-  fi
-
-  local derp_urls_block="  urls: []"
-  local derp_auto_update="  auto_update_enabled: false"
-  if [[ "$INCLUDE_OFFICIAL_DERP" == "true" ]]; then
-    derp_urls_block=$'  urls:\n    - https://controlplane.tailscale.com/derpmap/default'
-    derp_auto_update="  auto_update_enabled: true"
-  fi
-
-  cat > "${INSTALL_DIR}/config/config.yaml" <<EOF
-server_url: https://${DOMAIN}
-listen_addr: 0.0.0.0:8080
-metrics_listen_addr: 0.0.0.0:9090
-grpc_listen_addr: 0.0.0.0:50443
-grpc_allow_insecure: false
-
-trusted_proxies:
-  - 127.0.0.1/32
-  - 10.0.0.0/8
-  - 172.16.0.0/12
-  - 192.168.0.0/16
-
-noise:
-  private_key_path: /var/lib/headscale/noise_private.key
-
-prefixes:
-  v4: 100.64.0.0/10
-  v6: fd7a:115c:a1e0::/48
-  allocation: sequential
-
-derp:
-  server:
-    enabled: true
-    region_id: 999
-    region_code: "headscale"
-    region_name: "Headscale Embedded DERP"
-    verify_clients: true
-    stun_listen_addr: "0.0.0.0:3478"
-    private_key_path: /var/lib/headscale/derp_server_private.key
-    automatically_add_embedded_derp_region: true
-${derp_ip_lines}${derp_urls_block}
-  paths: []
-${derp_auto_update}
-  update_frequency: 3h
-
-disable_check_updates: false
-
-node:
-  expiry: 0
-  ephemeral:
-    inactivity_timeout: 30m
-  routes:
-    ha:
-      probe_interval: 10s
-      probe_timeout: 5s
-
-database:
-  type: sqlite
-  debug: false
-  gorm:
-    prepare_stmt: true
-    parameterized_queries: true
-    skip_err_record_not_found: true
-    slow_threshold: 1000
-  sqlite:
-    path: /var/lib/headscale/db.sqlite
-    write_ahead_log: true
-    wal_autocheckpoint: 1000
-
-acme_url: https://acme-v02.api.letsencrypt.org/directory
-acme_email: ""
-tls_letsencrypt_hostname: ""
-tls_letsencrypt_cache_dir: /var/lib/headscale/cache
-tls_letsencrypt_challenge_type: HTTP-01
-tls_letsencrypt_listen: ":http"
-tls_cert_path: ""
-tls_key_path: ""
-
-log:
-  level: info
-  format: text
-
-policy:
-  mode: file
-  path: /etc/headscale/acl.hujson
-
-dns:
-  magic_dns: true
-  base_domain: ${BASE_DOMAIN}
-  override_local_dns: true
-  nameservers:
-    global:
-      - 1.1.1.1
-      - 1.0.0.1
-      - 2606:4700:4700::1111
-      - 2606:4700:4700::1001
-    split: {}
-  search_domains: []
-  extra_records: []
-
-unix_socket: /var/lib/headscale/headscale.sock
-unix_socket_permission: "0770"
-
-logtail:
-  enabled: false
-
-taildrop:
-  enabled: true
-
-auto_update:
-  enabled: false
-EOF
-
-  cat > "${INSTALL_DIR}/config/acl.hujson" <<'EOF'
-{
-  "groups": {},
-  "tagOwners": {},
-  "acls": [
-    {
-      "action": "accept",
-      "src": ["*"],
-      "dst": ["*:*"]
-    }
-  ],
-  "ssh": [],
-  "autoApprovers": {
-    "routes": {},
-    "exitNode": []
-  }
 }
-EOF
+
+render_config() {
+  local config_path="${INSTALL_DIR}/config/config.yaml"
+
+  sed -i.bak \
+    -e "s|https://hs.example.com|https://${DOMAIN}|g" \
+    -e "s|base_domain: tailnet.hs.example.com|base_domain: ${BASE_DOMAIN}|g" \
+    "$config_path"
+  rm -f "${config_path}.bak"
+
+  if [[ "$INCLUDE_OFFICIAL_DERP" == "true" ]]; then
+    awk '
+      $0 == "  urls: []" {
+        print "  urls:"
+        print "    - https://controlplane.tailscale.com/derpmap/default"
+        next
+      }
+      $0 == "  auto_update_enabled: false" {
+        print "  auto_update_enabled: true"
+        next
+      }
+      { print }
+    ' "$config_path" > "${config_path}.tmp"
+    mv "${config_path}.tmp" "$config_path"
+  fi
+
+  if [[ -n "$DERP_IPV4" || -n "$DERP_IPV6" ]]; then
+    awk -v ipv4="$DERP_IPV4" -v ipv6="$DERP_IPV6" '
+      { print }
+      $0 ~ /automatically_add_embedded_derp_region: true/ {
+        if (ipv4 != "") print "    ipv4: " ipv4
+        if (ipv6 != "") print "    ipv6: " ipv6
+      }
+    ' "$config_path" > "${config_path}.tmp"
+    mv "${config_path}.tmp" "$config_path"
+  fi
+}
+
+write_stack_files() {
+  log "Writing stack files to ${INSTALL_DIR}"
+  install -d -m 0755 \
+    "$INSTALL_DIR" \
+    "$INSTALL_DIR/config" \
+    "$INSTALL_DIR/data" \
+    "$INSTALL_DIR/certs" \
+    "$INSTALL_DIR/caddy_config" \
+    "$INSTALL_DIR/backups" \
+    "$INSTALL_DIR/scripts"
+
+  copy_tree_file "$SOURCE_DIR/docker-compose.yml" "$INSTALL_DIR/docker-compose.yml"
+  copy_tree_file "$SOURCE_DIR/config/config.yaml" "$INSTALL_DIR/config/config.yaml"
+  copy_tree_file "$SOURCE_DIR/config/derp.yaml" "$INSTALL_DIR/config/derp.yaml"
+  copy_tree_file "$SOURCE_DIR/config/acl.hujson" "$INSTALL_DIR/config/acl.hujson"
+  copy_tree_file "$SOURCE_DIR/scripts/healthcheck.sh" "$INSTALL_DIR/scripts/healthcheck.sh"
+  copy_tree_file "$SOURCE_DIR/scripts/genkey.sh" "$INSTALL_DIR/scripts/genkey.sh"
+  copy_tree_file "$SOURCE_DIR/scripts/backup.sh" "$INSTALL_DIR/scripts/backup.sh"
+  chmod +x "$INSTALL_DIR/scripts/"*.sh
+
+  write_env_file
+  write_caddyfile
+  render_config
 }
 
 compose() {
@@ -431,22 +361,21 @@ write_client_guide() {
 Headscale URL:
   https://${DOMAIN}
 
-Server files:
-  ${INSTALL_DIR}/docker-compose.yml
-  ${INSTALL_DIR}/config/config.yaml
-  ${INSTALL_DIR}/config/acl.hujson
+Install directory:
+  ${INSTALL_DIR}
 
 Useful server commands:
   cd ${INSTALL_DIR}
   docker compose ps
   docker compose logs -f headscale
-  docker compose exec headscale headscale users list
-  docker compose exec headscale headscale nodes list
-  docker compose exec headscale headscale preauthkeys create --user ${HEADSCALE_USER} --reusable --expiration 24h
+  docker compose logs -f caddy
+  ./scripts/healthcheck.sh
+  ./scripts/genkey.sh --user ${HEADSCALE_USER}
+  ./scripts/backup.sh
 
 Client connection:
   Linux:
-    tailscale up --login-server https://${DOMAIN} --authkey <AUTH_KEY>
+    sudo tailscale up --login-server https://${DOMAIN} --authkey <AUTH_KEY>
 
   Windows PowerShell:
     tailscale login --login-server https://${DOMAIN}
@@ -463,6 +392,9 @@ Client connection:
 DERP verification from any connected desktop client:
   tailscale debug derp-map
   tailscale debug derp headscale
+
+Caddy certificate storage:
+  ${INSTALL_DIR}/certs/caddy/certificates
 EOF
 
   if [[ -n "$authkey" ]]; then
@@ -481,14 +413,14 @@ Install complete.
 
 Headscale URL: https://${DOMAIN}
 Install dir:   ${INSTALL_DIR}
+Certs dir:     ${INSTALL_DIR}/certs
 User:          ${HEADSCALE_USER}
 Client guide:  ${INSTALL_DIR}/client-connect.txt
 
 Next checks:
   cd ${INSTALL_DIR}
   docker compose ps
-  docker compose logs -f caddy
-  docker compose logs -f headscale
+  ./scripts/healthcheck.sh
 
 Make sure TCP 80/443 and UDP 3478 are reachable from the Internet.
 EOF
@@ -499,6 +431,7 @@ main() {
   validate_args
   ensure_root "$@"
   install_docker_if_needed
+  detect_source_dir
   write_stack_files
   start_stack
   wait_for_headscale
