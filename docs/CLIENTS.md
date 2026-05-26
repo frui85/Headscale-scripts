@@ -106,3 +106,30 @@ tailscale debug derp headscale
 ```
 
 Expected result: the DERP map contains the `headscale` region or `Headscale Embedded DERP`.
+
+## User and Node Management
+
+List users:
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/manage.sh user list
+```
+
+List nodes:
+
+```bash
+./scripts/manage.sh node list
+```
+
+Register a node:
+
+```bash
+./scripts/manage.sh node register --key <REGISTER_KEY> --user default
+```
+
+Delete a node:
+
+```bash
+./scripts/manage.sh node delete --id <NODE_ID>
+```

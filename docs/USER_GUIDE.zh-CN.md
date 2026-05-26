@@ -353,22 +353,148 @@ docker compose up -d
 查看用户：
 
 ```bash
-docker compose exec headscale headscale users list
+./scripts/manage.sh user list
 ```
 
 查看节点：
 
 ```bash
-docker compose exec headscale headscale nodes list
+./scripts/manage.sh node list
 ```
 
 删除节点：
 
 ```bash
-docker compose exec headscale headscale nodes delete --identifier <NODE_ID>
+./scripts/manage.sh node delete --id <NODE_ID>
 ```
 
-## 九、备份
+## 九、用户和节点增删改查
+
+所有命令都在安装目录执行：
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+```
+
+### 用户查询
+
+```bash
+./scripts/manage.sh user list
+```
+
+输出 JSON：
+
+```bash
+./scripts/manage.sh --output json user list
+```
+
+### 用户新增
+
+```bash
+./scripts/manage.sh user create fr-mbp
+```
+
+### 用户改名
+
+按用户名改：
+
+```bash
+./scripts/manage.sh user rename --name fr-mbp fr-macbook
+```
+
+按用户 ID 改：
+
+```bash
+./scripts/manage.sh user rename --id 2 fr-macbook
+```
+
+### 用户删除
+
+删除用户前，该用户下面不能有节点。先查节点：
+
+```bash
+./scripts/manage.sh node list
+```
+
+删除用户：
+
+```bash
+./scripts/manage.sh user delete --name fr-macbook
+```
+
+跳过确认：
+
+```bash
+./scripts/manage.sh user delete --name fr-macbook --force
+```
+
+### 节点查询
+
+```bash
+./scripts/manage.sh node list
+```
+
+只看某个用户：
+
+```bash
+./scripts/manage.sh node list --user fr-mbp
+```
+
+### 节点注册
+
+当客户端登录后给出 register key，可以执行：
+
+```bash
+./scripts/manage.sh node register --key <REGISTER_KEY> --user fr-mbp
+```
+
+更推荐日常使用 auth key 接入：
+
+```bash
+./scripts/genkey.sh --user fr-mbp --expiration 24h
+```
+
+### 节点改名
+
+```bash
+./scripts/manage.sh node rename --id 2 fr-mbp
+```
+
+### 节点移动到另一个用户
+
+```bash
+./scripts/manage.sh node move --id 2 --user default
+```
+
+这里 `--user` 可以填用户名，脚本会自动解析为 Headscale 需要的用户 ID。
+
+### 节点过期
+
+过期会保留节点记录，但强制客户端重新认证：
+
+```bash
+./scripts/manage.sh node expire --id 2
+```
+
+指定过期时间：
+
+```bash
+./scripts/manage.sh node expire --id 2 --expiry 2026-06-01T00:00:00Z
+```
+
+### 节点删除
+
+```bash
+./scripts/manage.sh node delete --id 2
+```
+
+跳过确认：
+
+```bash
+./scripts/manage.sh node delete --id 2 --force
+```
+
+## 十、备份
 
 手动备份：
 
@@ -396,7 +522,7 @@ cd /opt/docker-compose.d/headscale-server
 
 建议在升级前先备份。
 
-## 十、升级
+## 十一、升级
 
 升级前先备份：
 
@@ -431,7 +557,7 @@ sudo bash update.sh
 sudo bash update.sh --skip-backup
 ```
 
-## 十一、卸载
+## 十二、卸载
 
 停止服务但保留数据：
 
@@ -460,7 +586,7 @@ sudo bash uninstall.sh --purge
 
 执行前请确认已经备份。
 
-## 十二、证书申请和续期
+## 十三、证书申请和续期
 
 本项目使用 Caddy 自动管理 HTTPS 证书。
 
@@ -542,7 +668,7 @@ sudo crontab -e
 
 这个任务只做提醒，不会申请证书。
 
-## 十三、常见问题
+## 十四、常见问题
 
 ### 客户端应该填 DERP 域名吗
 

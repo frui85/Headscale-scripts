@@ -104,3 +104,30 @@ tailscale debug derp headscale
 ```
 
 预期结果：DERP map 中包含 `headscale` 区域或 `Headscale Embedded DERP`。
+
+## 用户和节点管理
+
+查看用户：
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/manage.sh user list
+```
+
+查看节点：
+
+```bash
+./scripts/manage.sh node list
+```
+
+注册节点：
+
+```bash
+./scripts/manage.sh node register --key <REGISTER_KEY> --user default
+```
+
+删除节点：
+
+```bash
+./scripts/manage.sh node delete --id <NODE_ID>
+```

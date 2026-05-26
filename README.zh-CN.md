@@ -22,7 +22,8 @@ Headscale-scripts/
 ├── scripts/
 │   ├── healthcheck.sh
 │   ├── genkey.sh
-│   └── backup.sh
+│   ├── backup.sh
+│   └── manage.sh
 ├── config/
 │   ├── config.yaml
 │   ├── derp.yaml
@@ -98,8 +99,26 @@ docker compose ps
 docker compose logs -f headscale
 docker compose logs -f caddy
 ./scripts/healthcheck.sh
+./scripts/manage.sh user list
+./scripts/manage.sh node list
 ./scripts/genkey.sh --user default
 ./scripts/backup.sh
+```
+
+用户和节点增删改查：
+
+```bash
+./scripts/manage.sh user create fr-mbp
+./scripts/manage.sh user list
+./scripts/manage.sh user rename --name fr-mbp fr-macbook
+./scripts/manage.sh user delete --name fr-macbook --force
+
+./scripts/manage.sh node list
+./scripts/manage.sh node register --key <REGISTER_KEY> --user fr-mbp
+./scripts/manage.sh node rename --id 2 fr-mbp
+./scripts/manage.sh node move --id 2 --user default
+./scripts/manage.sh node expire --id 2 --force
+./scripts/manage.sh node delete --id 2 --force
 ```
 
 更新：
