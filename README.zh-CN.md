@@ -72,6 +72,8 @@ cd Headscale-scripts
 sudo bash install.sh --domain hs.example.com --email admin@example.com --user default
 ```
 
+如果已经安装过，可以直接重新执行安装命令。默认会保留安装目录下的 `data/`、`certs/`、`backups/`，只刷新 Compose、Caddy、Headscale 配置和辅助脚本。
+
 常用参数：
 
 ```bash

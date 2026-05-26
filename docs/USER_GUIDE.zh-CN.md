@@ -151,7 +151,33 @@ https://hs.example.com
 
 如果证书正常，浏览器不应该提示 HTTPS 证书错误。
 
-## 四、生成客户端接入密钥
+## 四、重新安装并保留数据
+
+如果已经安装过，可以直接重新执行一键安装命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/frui85/Headscale-scripts/main/install.sh \
+  | sudo bash -s -- --domain hs.example.com --email admin@example.com --user default
+```
+
+默认会保留：
+
+- `data/`：Headscale 数据库和私钥
+- `certs/`：Caddy 证书和 ACME 账号数据
+- `backups/`：历史备份
+
+重新安装会刷新：
+
+- `docker-compose.yml`
+- `Caddyfile`
+- `config/config.yaml`
+- `config/derp.yaml`
+- `config/acl.hujson`
+- `scripts/`
+
+如果你从 `/opt/docker-compose.d/headscale-server` 目录里直接运行安装脚本，安装器会自动改为从 GitHub 下载最新模板，避免把安装目录里的文件复制到自身。
+
+## 五、生成客户端接入密钥
 
 安装脚本会自动创建一个初始可复用 auth key，并写入：
 
@@ -188,7 +214,7 @@ f3e9b4e5032c4f119794710352e7c41846261ae774fd727d
 
 如果用户不存在，脚本会自动创建用户。
 
-## 五、各客户端如何接入
+## 六、各客户端如何接入
 
 所有客户端都只填写 Headscale 地址：
 
@@ -269,7 +295,7 @@ Accounts -> three-dot menu -> Use an alternate server -> https://hs.example.com
 
 不同版本的 iOS App 菜单名称可能略有变化，核心要求是先选择自定义控制服务器。
 
-## 六、验证自建 DERP 是否生效
+## 七、验证自建 DERP 是否生效
 
 在已经接入的桌面客户端上执行：
 
@@ -292,7 +318,7 @@ tailscale debug derp headscale
 
 如果你安装时没有加 `--include-official-derp`，默认 DERP map 里只有自建 embedded DERP。这样更可控，但这台服务器也是 DERP 单点。
 
-## 七、服务端常用管理命令
+## 八、服务端常用管理命令
 
 进入安装目录：
 
@@ -342,7 +368,7 @@ docker compose exec headscale headscale nodes list
 docker compose exec headscale headscale nodes delete --identifier <NODE_ID>
 ```
 
-## 八、备份
+## 九、备份
 
 手动备份：
 
@@ -370,7 +396,7 @@ cd /opt/docker-compose.d/headscale-server
 
 建议在升级前先备份。
 
-## 九、升级
+## 十、升级
 
 升级前先备份：
 
@@ -405,7 +431,7 @@ sudo bash update.sh
 sudo bash update.sh --skip-backup
 ```
 
-## 十、卸载
+## 十一、卸载
 
 停止服务但保留数据：
 
@@ -434,7 +460,7 @@ sudo bash uninstall.sh --purge
 
 执行前请确认已经备份。
 
-## 十一、证书申请和续期
+## 十二、证书申请和续期
 
 本项目使用 Caddy 自动管理 HTTPS 证书。
 
@@ -516,7 +542,7 @@ sudo crontab -e
 
 这个任务只做提醒，不会申请证书。
 
-## 十二、常见问题
+## 十三、常见问题
 
 ### 客户端应该填 DERP 域名吗
 

@@ -52,6 +52,10 @@ Required firewall/DNS:
   - DOMAIN A/AAAA record points to this server.
   - TCP 80 and 443 are open for HTTPS and ACME.
   - UDP 3478 is open for embedded DERP/STUN.
+
+Reinstall:
+  Re-run the same install command to refresh compose/config/scripts.
+  Existing data, certificates, and backups under the install directory are preserved.
 EOF
 }
 
@@ -195,32 +199,50 @@ detect_source_dir() {
   local script_path="${BASH_SOURCE[0]:-$0}"
   local candidate=""
 
+  download_source_archive() {
+    command -v curl >/dev/null 2>&1 || die "curl is required to download install files"
+    command -v tar >/dev/null 2>&1 || die "tar is required to unpack install files"
+
+    log "Downloading install files from GitHub"
+    TMP_SOURCE="$(mktemp -d)"
+    curl -fsSL "$REPO_ARCHIVE_URL" -o "$TMP_SOURCE/repo.tar.gz"
+    tar -xzf "$TMP_SOURCE/repo.tar.gz" --strip-components=1 -C "$TMP_SOURCE"
+    SOURCE_DIR="$TMP_SOURCE"
+  }
+
   if [[ -f "$script_path" ]]; then
     candidate="$(cd "$(dirname "$script_path")" && pwd)"
     if [[ -f "$candidate/docker-compose.yml" && -f "$candidate/config/config.yaml" ]]; then
+      if [[ "$candidate" == "$INSTALL_DIR" ]]; then
+        download_source_archive
+        return
+      fi
       SOURCE_DIR="$candidate"
       return
     fi
   fi
 
   if [[ -f "./docker-compose.yml" && -f "./config/config.yaml" ]]; then
-    SOURCE_DIR="$(pwd)"
+    candidate="$(pwd)"
+    if [[ "$candidate" == "$INSTALL_DIR" ]]; then
+      download_source_archive
+      return
+    fi
+    SOURCE_DIR="$candidate"
     return
   fi
 
-  command -v curl >/dev/null 2>&1 || die "curl is required to download install files"
-  command -v tar >/dev/null 2>&1 || die "tar is required to unpack install files"
-
-  log "Downloading install files from GitHub"
-  TMP_SOURCE="$(mktemp -d)"
-  curl -fsSL "$REPO_ARCHIVE_URL" -o "$TMP_SOURCE/repo.tar.gz"
-  tar -xzf "$TMP_SOURCE/repo.tar.gz" --strip-components=1 -C "$TMP_SOURCE"
-  SOURCE_DIR="$TMP_SOURCE"
+  download_source_archive
 }
 
 copy_tree_file() {
   local src="$1"
   local dst="$2"
+
+  if [[ "$(cd "$(dirname "$src")" && pwd)/$(basename "$src")" == "$(cd "$(dirname "$dst")" && pwd)/$(basename "$dst")" ]]; then
+    return
+  fi
+
   install -D -m 0644 "$src" "$dst"
 }
 
