@@ -1,5 +1,7 @@
 # Architecture
 
+[中文说明](ARCHITECTURE.zh-CN.md)
+
 ## Components
 
 ```text

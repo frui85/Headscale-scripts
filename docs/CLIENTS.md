@@ -1,5 +1,7 @@
 # Client Connection Guide
 
+[中文说明](CLIENTS.zh-CN.md)
+
 Clients connect to the Headscale control server URL. Do not configure a separate DERP URL on clients.
 
 ## Server URL

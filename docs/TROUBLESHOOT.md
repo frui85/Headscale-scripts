@@ -1,5 +1,7 @@
 # Troubleshooting
 
+[中文说明](TROUBLESHOOT.zh-CN.md)
+
 ## Check Service Health
 
 On the server:

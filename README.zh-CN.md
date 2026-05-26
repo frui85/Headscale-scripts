@@ -1,12 +1,12 @@
 # Headscale-scripts
 
-[中文说明](README.zh-CN.md)
+[English](README.md)
 
-Headscale + embedded DERP Docker Compose one-click installer.
+Headscale + embedded DERP Docker Compose 一键安装脚本。
 
 本仓库用于一键安装 Headscale 自建控制服务器，并启用 Headscale embedded DERP。客户端只需要连接 Headscale 域名，DERP map 由 Headscale 自动下发。
 
-## Directory
+## 目录结构
 
 ```text
 Headscale-scripts/
@@ -17,6 +17,7 @@ Headscale-scripts/
 ├── .env.example
 ├── Caddyfile
 ├── README.md
+├── README.zh-CN.md
 ├── LICENSE
 ├── scripts/
 │   ├── healthcheck.sh
@@ -28,38 +29,42 @@ Headscale-scripts/
 │   └── acl.hujson
 └── docs/
     ├── CLIENTS.md
+    ├── CLIENTS.zh-CN.md
+    ├── USER_GUIDE.zh-CN.md
     ├── TROUBLESHOOT.md
-    └── ARCHITECTURE.md
+    ├── TROUBLESHOOT.zh-CN.md
+    ├── ARCHITECTURE.md
+    └── ARCHITECTURE.zh-CN.md
 ```
 
-## Quick Install
+## 快速安装
 
-Before installing:
+安装前先确认：
 
-- Point your domain to the server, for example `hs.example.com`.
-- Open TCP `80` and `443`.
-- Open UDP `3478`.
+- 域名已经解析到服务器，例如 `hs.example.com`
+- TCP `80` 和 `443` 已放行
+- UDP `3478` 已放行
 
-Run:
+执行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/frui85/Headscale-scripts/main/install.sh \
   | sudo bash -s -- --domain hs.example.com --email admin@example.com --user default
 ```
 
-Default install directory:
+默认安装目录：
 
 ```text
 /opt/docker-compose.d/headscale-server
 ```
 
-Caddy automatically requests HTTPS certificates for the domain passed to `--domain`. Certificate data is mounted under:
+Caddy 会根据 `--domain` 传入的域名自动申请 HTTPS 证书。证书数据挂载在：
 
 ```text
 /opt/docker-compose.d/headscale-server/certs
 ```
 
-## Local Install
+## 本地安装
 
 ```bash
 git clone https://github.com/frui85/Headscale-scripts.git
@@ -67,7 +72,7 @@ cd Headscale-scripts
 sudo bash install.sh --domain hs.example.com --email admin@example.com --user default
 ```
 
-Useful options:
+常用参数：
 
 ```bash
 sudo bash install.sh \
@@ -81,9 +86,9 @@ sudo bash install.sh \
   --derp-ipv4 203.0.113.10
 ```
 
-Use `--include-official-derp` if you want Tailscale's official DERP network as fallback. Without it, only the embedded DERP region is published.
+如果希望保留 Tailscale 官方 DERP 网络作为兜底，安装时加 `--include-official-derp`。默认只发布 embedded DERP 区域。
 
-## Server Commands
+## 服务管理
 
 ```bash
 cd /opt/docker-compose.d/headscale-server
@@ -95,74 +100,74 @@ docker compose logs -f caddy
 ./scripts/backup.sh
 ```
 
-Update:
+更新：
 
 ```bash
 sudo bash update.sh --headscale-version 0.27.1
 ```
 
-Uninstall but keep data:
+卸载但保留数据：
 
 ```bash
 sudo bash uninstall.sh
 ```
 
-Uninstall and delete config, data, certs, and backups:
+卸载并删除配置、数据、证书和备份：
 
 ```bash
 sudo bash uninstall.sh --purge
 ```
 
-## Client Connection
+## 客户端连接
 
-Use the Headscale URL, not a DERP URL:
+客户端使用 Headscale URL，不要填写 DERP URL：
 
 ```text
 https://hs.example.com
 ```
 
-Linux:
+Linux：
 
 ```bash
 sudo tailscale up --login-server https://hs.example.com --authkey <AUTH_KEY>
 ```
 
-Windows:
+Windows：
 
 ```powershell
 tailscale login --login-server https://hs.example.com
 ```
 
-macOS:
+macOS：
 
 ```bash
 tailscale login --login-server=https://hs.example.com
 ```
 
-Android and iOS: add a custom or alternate control server and enter `https://hs.example.com`.
+Android 和 iOS：添加自定义或备用控制服务器，填写 `https://hs.example.com`。
 
-## DERP Domain
+## DERP 域名
 
-This installer does not ask for a separate DERP domain by default.
+默认不需要单独的 DERP 域名。
 
-The default deployment uses one domain for both Headscale and the embedded DERP service:
+默认部署用同一个域名同时承载 Headscale 和 embedded DERP：
 
 ```text
 https://hs.example.com
 ```
 
-Clients log in to that Headscale URL. Headscale then sends a DERP map that contains the embedded `headscale` DERP region. For a single-server install, you only need:
+客户端登录这个 Headscale URL 后，Headscale 会下发包含 embedded `headscale` DERP 区域的 DERP map。单服务器安装只需要：
 
-- TCP `443` for HTTPS and DERP relay traffic
-- UDP `3478` for STUN
-- `server_url` set to `https://hs.example.com`
+- TCP `443`：HTTPS 和 DERP relay 流量
+- UDP `3478`：STUN
+- `server_url` 设置为 `https://hs.example.com`
 - `derp.server.enabled: true`
 
-A separate DERP domain is only needed when you run DERP independently from Headscale, deploy DERP on another server, build multi-region DERP such as `derp-hk.example.com` and `derp-sg.example.com`, or intentionally separate the control plane from relay traffic.
+只有在独立部署 DERP、DERP 跑在另一台服务器、多区域 DERP，或刻意把控制面和中继流量拆开时，才需要单独 DERP 域名。
 
-More detail:
+更多文档：
 
-- [Client connection guide](docs/CLIENTS.md)
-- [Troubleshooting](docs/TROUBLESHOOT.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [中文新手完整使用文档](docs/USER_GUIDE.zh-CN.md)
+- [新手完整使用文档](docs/USER_GUIDE.zh-CN.md)
+- [客户端连接指南](docs/CLIENTS.zh-CN.md)
+- [故障排查](docs/TROUBLESHOOT.zh-CN.md)
+- [架构说明](docs/ARCHITECTURE.zh-CN.md)
