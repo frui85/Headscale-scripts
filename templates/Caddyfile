@@ -1,0 +1,8 @@
+{
+    email admin@example.com
+}
+
+hs.example.com {
+    encode zstd gzip
+    reverse_proxy headscale:8080
+}

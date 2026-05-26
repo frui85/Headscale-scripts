@@ -1,0 +1,29 @@
+name: headscale-derp
+
+services:
+  headscale:
+    image: ghcr.io/juanfont/headscale:${HEADSCALE_VERSION:-0.27.1}
+    container_name: headscale
+    restart: unless-stopped
+    command: serve
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./config:/etc/headscale
+      - ./data:/var/lib/headscale
+    ports:
+      - "3478:3478/udp"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: headscale-caddy
+    restart: unless-stopped
+    depends_on:
+      - headscale
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config

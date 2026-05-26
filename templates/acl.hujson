@@ -1,0 +1,16 @@
+{
+  "groups": {},
+  "tagOwners": {},
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"]
+    }
+  ],
+  "ssh": [],
+  "autoApprovers": {
+    "routes": {},
+    "exitNode": []
+  }
+}
