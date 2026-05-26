@@ -41,6 +41,32 @@ cd /opt/docker-compose.d/headscale-server
 
 命令会输出一个 preauth key。Linux 和其他非交互式客户端可以用它接入。
 
+## 生成客户端接入包
+
+管理员或客服可以直接生成一份接入包发给用户：
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/onboard.sh --user fr-mbp --expiration 24h
+```
+
+输出里会包含：
+
+- Headscale 地址
+- auth key
+- Linux / Windows / macOS 命令
+- Android / iOS 操作提示
+
+客户端使用 auth key 后会自动加入服务端，不需要再手工执行 `nodes register`。
+
+临时设备可以使用 ephemeral key：
+
+```bash
+./scripts/onboard.sh --user temp-iphone --ephemeral --expiration 2h
+```
+
+ephemeral 节点适合短期设备。客户端执行 `tailscale logout` 后，节点会更快从 tailnet 移除。
+
 ## Linux
 
 ```bash
@@ -131,3 +157,12 @@ cd /opt/docker-compose.d/headscale-server
 ```bash
 ./scripts/manage.sh node delete --id <NODE_ID>
 ```
+
+清理已退出或过期的节点：
+
+```bash
+./scripts/cleanup.sh --expired --delete-empty-users
+./scripts/cleanup.sh --apply --expired --delete-empty-users
+```
+
+第一条是 dry-run，只显示会删除什么；第二条才会真正删除。

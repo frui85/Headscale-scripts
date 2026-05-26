@@ -21,7 +21,10 @@ Headscale-scripts/
 ├── scripts/
 │   ├── healthcheck.sh
 │   ├── genkey.sh
-│   └── backup.sh
+│   ├── backup.sh
+│   ├── manage.sh
+│   ├── onboard.sh
+│   └── cleanup.sh
 ├── config/
 │   ├── config.yaml
 │   ├── derp.yaml
@@ -93,6 +96,8 @@ docker compose logs -f caddy
 ./scripts/healthcheck.sh
 ./scripts/manage.sh user list
 ./scripts/manage.sh node list
+./scripts/onboard.sh --user default
+./scripts/cleanup.sh
 ./scripts/genkey.sh --user default
 ./scripts/backup.sh
 ```
@@ -111,6 +116,20 @@ User and node CRUD helper:
 ./scripts/manage.sh node move --id 2 --user default
 ./scripts/manage.sh node expire --id 2 --force
 ./scripts/manage.sh node delete --id 2 --force
+```
+
+Onboarding and cleanup:
+
+```bash
+# Generate a single-use onboarding package. The client joins automatically with the auth key.
+./scripts/onboard.sh --user fr-mbp --expiration 24h
+
+# Use an ephemeral key for short-lived clients; logout removes the node faster.
+./scripts/onboard.sh --user temp-iphone --ephemeral --expiration 2h
+
+# Dry-run cleanup first, then apply.
+./scripts/cleanup.sh --expired --delete-empty-users
+./scripts/cleanup.sh --apply --expired --delete-empty-users
 ```
 
 Update:

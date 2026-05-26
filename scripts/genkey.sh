@@ -5,6 +5,7 @@ INSTALL_DIR="${HEADSCALE_INSTALL_DIR:-/opt/docker-compose.d/headscale-server}"
 USER_NAME="default"
 EXPIRATION="24h"
 REUSABLE="true"
+EPHEMERAL="false"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +19,7 @@ Options:
   --user USER         Headscale user. Default: default
   --expiration VALUE  Key expiration. Default: 24h
   --single-use        Generate a single-use key instead of reusable.
+  --ephemeral         Generate an ephemeral key; logout removes the node faster.
   -h, --help          Show this help.
 EOF
 }
@@ -38,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --single-use)
       REUSABLE="false"
+      shift
+      ;;
+    --ephemeral)
+      EPHEMERAL="true"
       shift
       ;;
     -h|--help)
@@ -74,6 +80,9 @@ fi
 args=(preauthkeys create --user "$user_id" --expiration "$EXPIRATION")
 if [[ "$REUSABLE" == "true" ]]; then
   args+=(--reusable)
+fi
+if [[ "$EPHEMERAL" == "true" ]]; then
+  args+=(--ephemeral)
 fi
 
 docker compose exec -T headscale headscale "${args[@]}" | tr -d '\r' | tail -n 1

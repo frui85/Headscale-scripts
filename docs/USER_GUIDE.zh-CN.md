@@ -177,7 +177,7 @@ curl -fsSL https://raw.githubusercontent.com/frui85/Headscale-scripts/main/insta
 
 如果你从 `/opt/docker-compose.d/headscale-server` 目录里直接运行安装脚本，安装器会自动改为从 GitHub 下载最新模板，避免把安装目录里的文件复制到自身。
 
-## 五、生成客户端接入密钥
+## 五、生成客户端接入密钥和接入包
 
 安装脚本会自动创建一个初始可复用 auth key，并写入：
 
@@ -213,6 +213,38 @@ f3e9b4e5032c4f119794710352e7c41846261ae774fd727d
 ```
 
 如果用户不存在，脚本会自动创建用户。
+
+更推荐给普通用户使用接入包：
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/onboard.sh --user fr-mbp --expiration 24h
+```
+
+接入包会输出：
+
+- Headscale 地址
+- auth key
+- Linux / Windows / macOS 一键命令
+- Android / iOS 操作提示
+
+这样客户端使用 auth key 后会自动加入服务端，不需要管理员再手动注册节点。
+
+### 临时设备和自动删除
+
+如果希望用户退出登录后服务端更快移除节点，给临时设备生成 ephemeral auth key：
+
+```bash
+./scripts/onboard.sh --user temp-iphone --ephemeral --expiration 2h
+```
+
+ephemeral 节点适合临时手机、测试机、一次性设备。客户端执行：
+
+```bash
+tailscale logout
+```
+
+后，节点会更快从 tailnet 移除。普通非 ephemeral 节点退出后可能仍保留在服务端，需要通过清理脚本删除。
 
 ## 六、各客户端如何接入
 
@@ -494,7 +526,71 @@ cd /opt/docker-compose.d/headscale-server
 ./scripts/manage.sh node delete --id 2 --force
 ```
 
-## 十、备份
+## 十、自动清理退出登录后的节点和空用户
+
+Headscale 没有为“客户端退出登录”提供直接 webhook。本仓库用清理脚本实现自动化：
+
+- ephemeral 节点：客户端 `tailscale logout` 后会更快移除
+- 普通节点：通过 `cleanup.sh` 定时扫描 expired/offline 节点并删除
+- 用户：只有当用户下面没有任何节点时，才可以自动删除
+
+### 先 dry-run
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/cleanup.sh --expired --delete-empty-users
+```
+
+这条命令只显示会删除哪些节点和用户，不会真正删除。
+
+### 真正清理 expired 节点和空用户
+
+```bash
+./scripts/cleanup.sh --apply --expired --delete-empty-users
+```
+
+默认保护用户：
+
+- `default`
+- `tagged-devices`
+
+### 清理离线超过 24 小时的节点
+
+```bash
+./scripts/cleanup.sh --apply --offline-hours 24 --delete-empty-users
+```
+
+这个选项更激进，适合你确认“离线超过 24 小时就认为已退出”的场景。
+
+### 只删除指定前缀的空用户
+
+如果你给临时用户统一加前缀，例如 `temp-iphone`、`temp-android`，可以这样清理：
+
+```bash
+./scripts/cleanup.sh --apply --expired --delete-empty-users --user-prefix temp-
+```
+
+### 增加定时任务
+
+编辑 root 的 crontab：
+
+```bash
+sudo crontab -e
+```
+
+每 10 分钟清理 expired 节点和空用户：
+
+```cron
+*/10 * * * * cd /opt/docker-compose.d/headscale-server && ./scripts/cleanup.sh --apply --expired --delete-empty-users >> /var/log/headscale-cleanup.log 2>&1
+```
+
+如果你只想清理 `temp-` 前缀的临时用户：
+
+```cron
+*/10 * * * * cd /opt/docker-compose.d/headscale-server && ./scripts/cleanup.sh --apply --expired --delete-empty-users --user-prefix temp- >> /var/log/headscale-cleanup.log 2>&1
+```
+
+## 十一、备份
 
 手动备份：
 
@@ -522,7 +618,7 @@ cd /opt/docker-compose.d/headscale-server
 
 建议在升级前先备份。
 
-## 十一、升级
+## 十二、升级
 
 升级前先备份：
 
@@ -557,7 +653,7 @@ sudo bash update.sh
 sudo bash update.sh --skip-backup
 ```
 
-## 十二、卸载
+## 十三、卸载
 
 停止服务但保留数据：
 
@@ -586,7 +682,7 @@ sudo bash uninstall.sh --purge
 
 执行前请确认已经备份。
 
-## 十三、证书申请和续期
+## 十四、证书申请和续期
 
 本项目使用 Caddy 自动管理 HTTPS 证书。
 
@@ -668,7 +764,7 @@ sudo crontab -e
 
 这个任务只做提醒，不会申请证书。
 
-## 十四、常见问题
+## 十五、常见问题
 
 ### 客户端应该填 DERP 域名吗
 

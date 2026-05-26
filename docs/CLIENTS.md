@@ -133,3 +133,32 @@ Delete a node:
 ```bash
 ./scripts/manage.sh node delete --id <NODE_ID>
 ```
+
+## Client Onboarding and Cleanup
+
+Generate a single-use onboarding package:
+
+```bash
+cd /opt/docker-compose.d/headscale-server
+./scripts/onboard.sh --user fr-mbp --expiration 24h
+```
+
+The client can join automatically with the printed auth key. No manual `nodes register` step is needed.
+
+For short-lived clients, use an ephemeral key:
+
+```bash
+./scripts/onboard.sh --user temp-iphone --ephemeral --expiration 2h
+```
+
+Dry-run cleanup first:
+
+```bash
+./scripts/cleanup.sh --expired --delete-empty-users
+```
+
+Apply cleanup:
+
+```bash
+./scripts/cleanup.sh --apply --expired --delete-empty-users
+```

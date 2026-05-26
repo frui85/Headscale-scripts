@@ -333,6 +333,8 @@ write_stack_files() {
   copy_tree_file "$SOURCE_DIR/scripts/genkey.sh" "$INSTALL_DIR/scripts/genkey.sh"
   copy_tree_file "$SOURCE_DIR/scripts/backup.sh" "$INSTALL_DIR/scripts/backup.sh"
   copy_tree_file "$SOURCE_DIR/scripts/manage.sh" "$INSTALL_DIR/scripts/manage.sh"
+  copy_tree_file "$SOURCE_DIR/scripts/onboard.sh" "$INSTALL_DIR/scripts/onboard.sh"
+  copy_tree_file "$SOURCE_DIR/scripts/cleanup.sh" "$INSTALL_DIR/scripts/cleanup.sh"
   chmod +x "$INSTALL_DIR/scripts/"*.sh
 
   write_env_file
@@ -416,6 +418,8 @@ Useful server commands:
   ./scripts/healthcheck.sh
   ./scripts/manage.sh user list
   ./scripts/manage.sh node list
+  ./scripts/onboard.sh --user ${HEADSCALE_USER}
+  ./scripts/cleanup.sh
   ./scripts/genkey.sh --user ${HEADSCALE_USER}
   ./scripts/backup.sh
 

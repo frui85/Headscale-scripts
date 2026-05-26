@@ -23,7 +23,9 @@ Headscale-scripts/
 │   ├── healthcheck.sh
 │   ├── genkey.sh
 │   ├── backup.sh
-│   └── manage.sh
+│   ├── manage.sh
+│   ├── onboard.sh
+│   └── cleanup.sh
 ├── config/
 │   ├── config.yaml
 │   ├── derp.yaml
@@ -101,6 +103,8 @@ docker compose logs -f caddy
 ./scripts/healthcheck.sh
 ./scripts/manage.sh user list
 ./scripts/manage.sh node list
+./scripts/onboard.sh --user default
+./scripts/cleanup.sh
 ./scripts/genkey.sh --user default
 ./scripts/backup.sh
 ```
@@ -119,6 +123,22 @@ docker compose logs -f caddy
 ./scripts/manage.sh node move --id 2 --user default
 ./scripts/manage.sh node expire --id 2 --force
 ./scripts/manage.sh node delete --id 2 --force
+```
+
+自动接入和自动清理：
+
+```bash
+# 给用户生成一次性接入包，客户端使用 auth key 后自动入网
+./scripts/onboard.sh --user fr-mbp --expiration 24h
+
+# 短期设备建议使用 ephemeral key；客户端 tailscale logout 后更快从服务端移除
+./scripts/onboard.sh --user temp-iphone --ephemeral --expiration 2h
+
+# dry-run 查看会清理什么
+./scripts/cleanup.sh --expired --delete-empty-users
+
+# 真正删除 expired 节点，并删除没有节点的空用户
+./scripts/cleanup.sh --apply --expired --delete-empty-users
 ```
 
 更新：
