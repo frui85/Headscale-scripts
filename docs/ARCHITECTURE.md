@@ -80,6 +80,25 @@ derp:
 
 With this default, the embedded Headscale DERP is the only DERP region. Passing `--include-official-derp` during installation adds the official Tailscale DERP map as fallback.
 
+## DERP Domain
+
+The default architecture does not need a dedicated DERP domain.
+
+One domain is used for both roles:
+
+```text
+https://hs.example.com
+```
+
+That domain reaches Caddy on TCP `443`, Caddy proxies Headscale control traffic to `headscale:8080`, and Headscale publishes its embedded DERP region in the DERP map. STUN uses UDP `3478` on the same public server.
+
+Use a separate DERP domain only when DERP is not embedded in this Headscale instance. Common reasons include:
+
+- DERP runs on another server.
+- You are deploying multiple DERP regions.
+- You use standalone `derper` instead of Headscale embedded DERP.
+- You want to isolate Headscale control-plane traffic from relay traffic.
+
 ## Persistence
 
 Persistent state is local to the install directory:

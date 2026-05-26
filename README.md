@@ -139,6 +139,25 @@ tailscale login --login-server=https://hs.example.com
 
 Android and iOS: add a custom or alternate control server and enter `https://hs.example.com`.
 
+## DERP Domain
+
+This installer does not ask for a separate DERP domain by default.
+
+The default deployment uses one domain for both Headscale and the embedded DERP service:
+
+```text
+https://hs.example.com
+```
+
+Clients log in to that Headscale URL. Headscale then sends a DERP map that contains the embedded `headscale` DERP region. For a single-server install, you only need:
+
+- TCP `443` for HTTPS and DERP relay traffic
+- UDP `3478` for STUN
+- `server_url` set to `https://hs.example.com`
+- `derp.server.enabled: true`
+
+A separate DERP domain is only needed when you run DERP independently from Headscale, deploy DERP on another server, build multi-region DERP such as `derp-hk.example.com` and `derp-sg.example.com`, or intentionally separate the control plane from relay traffic.
+
 More detail:
 
 - [Client connection guide](docs/CLIENTS.md)

@@ -12,6 +12,24 @@ https://hs.example.com
 
 Headscale sends the DERP map to clients after they connect. With the default installer configuration, that DERP map contains the embedded Headscale DERP region.
 
+## No Separate DERP Domain by Default
+
+The installer uses the same domain for Headscale and embedded DERP. Clients should not enter a DERP domain or DERP URL manually.
+
+Use:
+
+```text
+https://hs.example.com
+```
+
+Do not use:
+
+```text
+https://derp.hs.example.com
+```
+
+A separate DERP domain is only for advanced deployments where DERP runs outside this Headscale server.
+
 ## Generate an Auth Key
 
 On the server:

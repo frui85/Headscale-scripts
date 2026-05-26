@@ -53,13 +53,27 @@ done
 
 cd "$INSTALL_DIR"
 
-if ! docker compose exec -T headscale headscale users list 2>/dev/null | grep -Eq "[[:space:]]${USER_NAME}([[:space:]]|$)"; then
-  docker compose exec -T headscale headscale users create "$USER_NAME"
+extract_user_id() {
+  sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' | head -n 1
+}
+
+users_json="$(docker compose exec -T headscale headscale users list --name "$USER_NAME" -o json 2>/dev/null || true)"
+user_id="$(printf '%s\n' "$users_json" | extract_user_id)"
+
+if [[ -z "$user_id" ]]; then
+  docker compose exec -T headscale headscale users create "$USER_NAME" >/dev/null
+  users_json="$(docker compose exec -T headscale headscale users list --name "$USER_NAME" -o json)"
+  user_id="$(printf '%s\n' "$users_json" | extract_user_id)"
 fi
 
-args=(preauthkeys create --user "$USER_NAME" --expiration "$EXPIRATION")
+[[ -n "$user_id" ]] || {
+  echo "ERROR: Unable to resolve Headscale user ID for '${USER_NAME}'" >&2
+  exit 1
+}
+
+args=(preauthkeys create --user "$user_id" --expiration "$EXPIRATION")
 if [[ "$REUSABLE" == "true" ]]; then
   args+=(--reusable)
 fi
 
-docker compose exec -T headscale headscale "${args[@]}"
+docker compose exec -T headscale headscale "${args[@]}" | tr -d '\r' | tail -n 1

@@ -321,6 +321,28 @@ compose() {
   docker compose -f "${INSTALL_DIR}/docker-compose.yml" --env-file "${INSTALL_DIR}/.env" "$@"
 }
 
+extract_user_id() {
+  sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' | head -n 1
+}
+
+resolve_headscale_user_id() {
+  local user_name="$1"
+  local users_json=""
+  local user_id=""
+
+  users_json="$(compose exec -T headscale headscale users list --name "$user_name" -o json 2>/dev/null || true)"
+  user_id="$(printf '%s\n' "$users_json" | extract_user_id)"
+
+  if [[ -z "$user_id" ]]; then
+    compose exec -T headscale headscale users create "$user_name" >/dev/null
+    users_json="$(compose exec -T headscale headscale users list --name "$user_name" -o json)"
+    user_id="$(printf '%s\n' "$users_json" | extract_user_id)"
+  fi
+
+  [[ -n "$user_id" ]] || die "Unable to resolve Headscale user ID for '${user_name}'"
+  printf '%s\n' "$user_id"
+}
+
 start_stack() {
   log "Starting Headscale and Caddy"
   compose up -d
@@ -342,14 +364,13 @@ wait_for_headscale() {
 
 create_user_and_key() {
   log "Ensuring Headscale user '${HEADSCALE_USER}' exists"
-  if ! compose exec -T headscale headscale users list 2>/dev/null | grep -Eq "[[:space:]]${HEADSCALE_USER}([[:space:]]|$)"; then
-    compose exec -T headscale headscale users create "$HEADSCALE_USER"
-  fi
+  local headscale_user_id=""
+  headscale_user_id="$(resolve_headscale_user_id "$HEADSCALE_USER")"
 
   local authkey=""
   if [[ "$CREATE_AUTHKEY" == "true" ]]; then
     log "Creating reusable preauth key"
-    authkey="$(compose exec -T headscale headscale preauthkeys create --user "$HEADSCALE_USER" --reusable --expiration "$AUTHKEY_EXPIRATION" | tr -d '\r')"
+    authkey="$(compose exec -T headscale headscale preauthkeys create --user "$headscale_user_id" --reusable --expiration "$AUTHKEY_EXPIRATION" | tr -d '\r' | tail -n 1)"
   fi
 
   write_client_guide "$authkey"
